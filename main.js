@@ -1,4 +1,3 @@
-// main.js
 const localVideo = document.getElementById('localVideo');
 const remoteVideo = document.getElementById('remoteVideo');
 
@@ -8,24 +7,26 @@ navigator.mediaDevices.getUserMedia({ video: true, audio: true })
     localVideo.srcObject = stream;
     
     // 连接WebSocket服务器
-    const ws = new WebSocket('ws://your-server-ip:8080');
+    const ws = new WebSocket('ws://192.168.1.9:8080');
     
     ws.onmessage = (event) => {
+      console.log('Received message:', event.data); // 添加这行用于调试输出
       const message = JSON.parse(event.data);
       if (message.sdp) {
-        // 处理SDP信息，设置远程描述
+        // 显示收到的SDP信息
+        const sdpInfoDiv = document.getElementById('sdpInfo');
+        const formattedSDP = message.sdp.sdp.replace(/\r\n/g, '<br>').replace(/ /g, '&nbsp;');
+        sdpInfoDiv.innerHTML = `<pre>Received SDP:\n${formattedSDP}</pre>`;
+    
+        // 以下为之前的SDP处理逻辑
         peerConnection.setRemoteDescription(new RTCSessionDescription(message.sdp))
           .then(() => {
             if (message.sdp.type === 'offer') {
-              // 如果是offer，回复一个answer
               return peerConnection.createAnswer();
             }
           })
           .then((answer) => {
-            return peerConnection.setLocalDescription(answer);
-          })
-          .then(() => {
-            // 发送answer给对方
+            peerConnection.setLocalDescription(answer);
             ws.send(JSON.stringify({ sdp: peerConnection.localDescription }));
           });
       } else if (message.candidate) {
@@ -34,8 +35,13 @@ navigator.mediaDevices.getUserMedia({ video: true, audio: true })
       }
     };
     
+    
     // 创建PeerConnection对象
-    const peerConnection = new RTCPeerConnection();
+    const peerConnection = new RTCPeerConnection({
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' }, // 添加 STUN 服务器
+      ],
+    });
     
     // 添加本地视频流到PeerConnection
     stream.getTracks().forEach((track) => {
